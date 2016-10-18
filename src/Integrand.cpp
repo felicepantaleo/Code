@@ -92,6 +92,11 @@ MEM::Integrand::Integrand(int debug, const MEMConfig &config)
   processes[Process::TTBBj] =
       ol_register_process("21 21 -> 6 -6 5 -5 21", 1);  // ttbbg
 
+  // qcd
+  ol_setparameter_int("order_ew", 0); //DS - ppjjjj
+  processes[Process::QCD] =
+      ol_register_process("21 21 -> 21 21 21 21", 1);  // qcd: 1 for tree, 11 for loop, 12 for loop^2
+
   el::Configurations defaultConf;
   defaultConf.setToDefault();
   defaultConf.set(el::Level::Info, el::ConfigurationType::Format,
@@ -248,6 +253,8 @@ void MEM::Integrand::init(const MEM::FinalState::FinalState f,
       ps_dim = 3;
     } else if (hypo == Hypothesis::TTBB) {
       ps_dim = 4;
+    } else if (hypo == Hypothesis::QCD) { //DS
+      ps_dim = 4;  // assume 4 gluons split to 2 quarks each
     }
   }
 
@@ -364,7 +371,7 @@ void MEM::Integrand::get_edges(double *lim,
       lim[map_to_var[PSVar::E_q1]] = edge ? 1. : 0.;
       lim[map_to_var[PSVar::E_q2]] = edge ? 1. : 0.;
       lim[map_to_var[PSVar::E_b]] = edge ? 1. : 0.;
-      if (hypo == Hypothesis::TTBB)
+      if (hypo == Hypothesis::TTBB || hypo == Hypothesis::QCD) //DS
         lim[map_to_var[PSVar::E_bbar]] = edge ? 1. : 0.;
       for (auto l = lost.begin(); l != lost.end(); ++l) {
         if (edge)
@@ -475,8 +482,8 @@ void MEM::Integrand::fill_map(const std::vector<PSVar::PSVar> &lost) {
     map_to_var[PSVar::E_q1] = 0;  // Eq
     map_to_var[PSVar::E_q2] = 1;  // Eq
     map_to_var[PSVar::E_b] = 2;   // Eb
-    if (hypo == Hypothesis::TTBB) map_to_var[PSVar::E_bbar] = 3;
-    psvar_idx = 3 + (hypo == Hypothesis::TTBB);
+    if (hypo == Hypothesis::TTBB || hypo == Hypothesis::QCD) map_to_var[PSVar::E_bbar] = 3; //DS
+    psvar_idx = 3 + (hypo == Hypothesis::TTBB || hypo == Hypothesis::QCD); //DS
     for (auto l = lost.begin(); l != lost.end(); ++l)
       map_to_var[*l] = psvar_idx++;
 
@@ -1355,7 +1362,13 @@ bool MEM::Integrand::accept_perm_bbbarsymmetry(const vector<int> &perm) const {
 bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     const vector<int> &perm) const {
   vector<size_t> indexes1, indexes2;
-  if (fs == FinalState::LH) {
+  if (hypo == Hypothesis::QCD) { //DS
+    // the  symmetric part
+    indexes1 = get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1,
+	  PSPart::q2, PSPart::qbar2, PSPart::b, PSPart::b1, PSPart::bbar, PSPart::b2});
+    // the asymmetric part - none
+  }
+  else if (fs == FinalState::LH) {
     // the  symmetric part
     indexes1 = get_indexes(
         map_to_part, {PSPart::q1, PSPart::qbar1, PSPart::b, PSPart::bbar});
@@ -1370,7 +1383,7 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     // the  symmetric part
     indexes1 =
         get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1, PSPart::q2,
-                                  PSPart::qbar2, PSPart::b, PSPart::bbar});
+	                          PSPart::qbar2, PSPart::b, PSPart::bbar});
     // the asymmetric part
     indexes2 = get_indexes(map_to_part, {PSPart::b1, PSPart::b2});
   }
@@ -2199,26 +2212,28 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     dir.SetPhi(x[map_to_var.find(PSVar::phi_qbar1)->second]);
     tftype = (perm[nj_qbar1] == -1 ? TFType::qLost : TFType::Unknown);
   }
-  E = solve(ps.lv(PSPart::q1), DMW2, MQ, dir, E_REC, accept);
+  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q1).E(); //DS assume equal energies in g->qqbar decay
+  else E = solve(ps.lv(PSPart::q1), DMW2, MQ, dir, E_REC, accept);
   extend_PS(ps, PSPart::qbar1, E, MQ, dir, perm[nj_qbar1], PSVar::cos_qbar1,
             PSVar::phi_qbar1, PSVar::E_qbar1, tftype, 0);
 
   /////  PSPart::b1
-  if (perm[nj_b1] >= 0) {
-    MEM::Object *obj = obs_jets[perm[nj_b1]];
-    dir = obj->p4().Vect().Unit();
-    E_REC = obj->p4().E();
-    tftype = TFType::bReco;
-  } else {
-    dir.SetTheta(TMath::ACos(x[map_to_var.find(PSVar::cos_b1)->second]));
-    dir.SetPhi(x[map_to_var.find(PSVar::phi_b1)->second]);
-    tftype = (perm[nj_b1] == -1 ? TFType::bLost : TFType::Unknown);
+  if (hypo != Hypothesis::QCD) { //DS set PS point for b1 after b
+    if (perm[nj_b1] >= 0) {
+      MEM::Object *obj = obs_jets[perm[nj_b1]];
+      dir = obj->p4().Vect().Unit();
+      E_REC = obj->p4().E();
+      tftype = TFType::bReco;
+    } else {
+      dir.SetTheta(TMath::ACos(x[map_to_var.find(PSVar::cos_b1)->second]));
+      dir.SetPhi(x[map_to_var.find(PSVar::phi_b1)->second]);
+      tftype = (perm[nj_b1] == -1 ? TFType::bLost : TFType::Unknown);
+    }
+    E = solve(ps.lv(PSPart::q1) + ps.lv(PSPart::qbar1), DMT2, MB, dir, E_REC,
+	      accept);
+    extend_PS(ps, PSPart::b1, E, MB, dir, perm[nj_b1], PSVar::cos_b1,
+	      PSVar::phi_b1, PSVar::E_b1, tftype, 0);
   }
-  E = solve(ps.lv(PSPart::q1) + ps.lv(PSPart::qbar1), DMT2, MB, dir, E_REC,
-            accept);
-  extend_PS(ps, PSPart::b1, E, MB, dir, perm[nj_b1], PSVar::cos_b1,
-            PSVar::phi_b1, PSVar::E_b1, tftype, 0);
-
   /////  PSPart::q2
   if (perm[nj_q2] >= 0) {
     MEM::Object *obj = obs_jets[perm[nj_q2]];
@@ -2248,7 +2263,8 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     dir.SetPhi(x[map_to_var.find(PSVar::phi_qbar2)->second]);
     tftype = (perm[nj_qbar2] == -1 ? TFType::qLost : TFType::Unknown);
   }
-  E = solve(ps.lv(PSPart::q2), DMW2, MQ, dir, E_REC, accept);
+  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q1).E(); //DS assume equal energies in g->qqbar decay
+  else E = solve(ps.lv(PSPart::q2), DMW2, MQ, dir, E_REC, accept);
   extend_PS(ps, PSPart::qbar2, E, MQ, dir, perm[nj_qbar2], PSVar::cos_qbar2,
             PSVar::phi_qbar2, PSVar::E_qbar2, tftype, 0);
 
@@ -2263,11 +2279,12 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     dir.SetPhi(x[map_to_var.find(PSVar::phi_b2)->second]);
     tftype = (perm[nj_b2] == -1 ? TFType::bLost : TFType::Unknown);
   }
-  E = solve(ps.lv(PSPart::q2) + ps.lv(PSPart::qbar2), DMT2, MB, dir, E_REC,
-            accept);
-  extend_PS(ps, PSPart::b2, E, MB, dir, perm[nj_b2], PSVar::cos_b2,
-            PSVar::phi_b2, PSVar::E_b2, tftype, 0);
-
+  if (hypo != Hypothesis::QCD) { //DS set PS point for b2 after bbar
+    E = solve(ps.lv(PSPart::q2) + ps.lv(PSPart::qbar2), DMT2, MB, dir, E_REC,
+	      accept);
+    extend_PS(ps, PSPart::b2, E, MB, dir, perm[nj_b2], PSVar::cos_b2,
+	      PSVar::phi_b2, PSVar::E_b2, tftype, 0);
+  }
   /////  PSPart::b
   if (perm[nj_b] >= 0) {
     MEM::Object *obj = obs_jets[perm[nj_b]];
@@ -2288,6 +2305,22 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
   extend_PS(ps, PSPart::b, E, MB, dir, perm[nj_b], PSVar::cos_b, PSVar::phi_b,
             PSVar::E_b, tftype, 0);
 
+  // PSPart::b1 for QCD hypo - DS
+  if (hypo == Hypothesis::QCD) {
+    if (perm[nj_b1] >= 0) {
+      MEM::Object *obj = obs_jets[perm[nj_b1]];
+      dir = obj->p4().Vect().Unit();
+      E_REC = obj->p4().E();
+      tftype = TFType::bReco;
+    } else {
+      dir.SetTheta(TMath::ACos(x[map_to_var.find(PSVar::cos_b1)->second]));
+      dir.SetPhi(x[map_to_var.find(PSVar::phi_b1)->second]);
+      tftype = (perm[nj_b1] == -1 ? TFType::bLost : TFType::Unknown);
+    }
+    E = ps.lv(PSPart::b).E(); //DS assume equal energies in g->bbbar decay
+    extend_PS(ps, PSPart::b1, E, MB, dir, perm[nj_b1], PSVar::cos_b1,
+	      PSVar::phi_b1, PSVar::E_b1, tftype, 0);
+  }
   /////  PSPart::bbar
   if (perm[nj_bbar] >= 0) {
     MEM::Object *obj = obs_jets[perm[nj_bbar]];
@@ -2305,13 +2338,29 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     E_HIGH = cfg.emax;
     tftype = (perm[nj_bbar] == -1 ? TFType::bLost : TFType::Unknown);
   }
-  E = hypo == Hypothesis::TTBB
-          ? E_LOW +
-                (E_HIGH - E_LOW) * (x[map_to_var.find(PSVar::E_bbar)->second])
-          : solve(ps.lv(PSPart::b), DMH2, MB, dir, E_REC, accept);
+  E = hypo == Hypothesis::TTH
+    ? solve(ps.lv(PSPart::b), DMH2, MB, dir, E_REC, accept)
+    : E_LOW +
+    (E_HIGH - E_LOW) * (x[map_to_var.find(PSVar::E_bbar)->second]);
   extend_PS(ps, PSPart::bbar, E, MB, dir, perm[nj_bbar], PSVar::cos_bbar,
             PSVar::phi_bbar, PSVar::E_bbar, tftype, 0);
 
+  // PSPart::b2 for QCD hypo - DS
+  if (hypo == Hypothesis::QCD) {
+    if (perm[nj_b2] >= 0) {
+      MEM::Object *obj = obs_jets[perm[nj_b2]];
+      dir = obj->p4().Vect().Unit();
+      E_REC = obj->p4().E();
+      tftype = TFType::bReco;
+    } else {
+      dir.SetTheta(TMath::ACos(x[map_to_var.find(PSVar::cos_b2)->second]));
+      dir.SetPhi(x[map_to_var.find(PSVar::phi_b2)->second]);
+      tftype = (perm[nj_b2] == -1 ? TFType::bLost : TFType::Unknown);
+    }
+    E = ps.lv(PSPart::bbar).E(); //DS assume equal energies in g->bbbar decay
+    extend_PS(ps, PSPart::b2, E, MB, dir, perm[nj_b2], PSVar::cos_b2,
+	      PSVar::phi_b2, PSVar::E_b2, tftype, 0);
+  }
   // protect against collinear radiation for TTBB
   if (hypo == Hypothesis::TTBB) {
     LV lv_b = ps.lv(PSPart::b);
@@ -2438,13 +2487,24 @@ double MEM::Integrand::matrix(const PS &ps) const {
            << ", m(t2)=" << (lv_q2 + lv_qbar2 + lv_b2).M() << endl
            << ", m(H)=" << (lv_b + lv_bbar).M();
 
+  if (hypo == Hypothesis::QCD){
+    m *= g_decay_amplitude(lv_q1, lv_qbar1);
+    m *= g_decay_amplitude(lv_q2, lv_qbar2);
+    m *= g_decay_amplitude(lv_b1, lv_b2);
+    m *= g_decay_amplitude(lv_b, lv_bbar);
+    m *= scattering(lv_q1 + lv_qbar1,  // gluon
+		    lv_q2 + lv_qbar2,  // gluon
+		    lv_b1 + lv_b2, lv_b + lv_bbar, lv_additional_jet, x1, x2);
+  }
+  else {
   m *= t_decay_amplitude(lv_q1, lv_qbar1, lv_b1, ps.charge(PSPart::q1));
   m *= t_decay_amplitude(lv_q2, lv_qbar2, lv_b2, ps.charge(PSPart::q2));
   m *= H_decay_amplitude(lv_b, lv_bbar);
   m *= scattering(lv_q1 + lv_qbar1 + lv_b1,  // top
-                  lv_q2 + lv_qbar2 + lv_b2,  // antitop
-                  lv_b, lv_bbar, lv_additional_jet, x1, x2);
+		  lv_q2 + lv_qbar2 + lv_b2,  // antitop
+		  lv_b, lv_bbar, lv_additional_jet, x1, x2);
   m *= pdf(x1, x2, lv_b.Pt() + lv_bbar.Pt());
+  }
 
   if (TMath::IsNaN(m)) {
     LOG(ERROR) << "matrix() returned a NaN...";
@@ -2711,19 +2771,27 @@ double *get_phase_space(std::initializer_list<LV> vecs) {
   return ps;
 }
 
-double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1,
-                                  const LV &b2, const LV &additional_jet,
+double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, //DS g3, g4, g5
+                                  const LV &b2, const LV &additional_jet,      //DS g6, empty
                                   double &x1, double &x2) const {
   // return value (address passed to OpenLoops)
   double M2{1.};
 
   // temporary objects
   LV t, tx, b, bx, h, sum;
-  t.SetPtEtaPhiM(top.Pt(), top.Eta(), top.Phi(), MTOP);
-  tx.SetPtEtaPhiM(atop.Pt(), atop.Eta(), atop.Phi(), MTOP);
-  b.SetPtEtaPhiM(b1.Pt(), b1.Eta(), b1.Phi(), 0.);
-  bx.SetPtEtaPhiM(b2.Pt(), b2.Eta(), b2.Phi(), 0.);
-  h.SetPtEtaPhiM((b1 + b2).Pt(), (b1 + b2).Eta(), (b1 + b2).Phi(), MH);
+  if (hypo == Hypothesis::QCD){
+    t.SetPtEtaPhiM(top.Pt(), top.Eta(), top.Phi(), 0.);
+    tx.SetPtEtaPhiM(atop.Pt(), atop.Eta(), atop.Phi(), 0.);
+    b.SetPtEtaPhiM(b1.Pt(), b1.Eta(), b1.Phi(), 0.);
+    bx.SetPtEtaPhiM(b2.Pt(), b2.Eta(), b2.Phi(), 0.);
+    h.SetPtEtaPhiM((b1 + b2).Pt(), (b1 + b2).Eta(), (b1 + b2).Phi(), 0.);
+  } else{
+    t.SetPtEtaPhiM(top.Pt(), top.Eta(), top.Phi(), MTOP);
+    tx.SetPtEtaPhiM(atop.Pt(), atop.Eta(), atop.Phi(), MTOP);
+    b.SetPtEtaPhiM(b1.Pt(), b1.Eta(), b1.Phi(), 0.);
+    bx.SetPtEtaPhiM(b2.Pt(), b2.Eta(), b2.Phi(), 0.);
+    h.SetPtEtaPhiM((b1 + b2).Pt(), (b1 + b2).Eta(), (b1 + b2).Phi(), MH);
+  }
   LV rad(additional_jet.Px(), additional_jet.Py(), additional_jet.Pz(),
          additional_jet.E());
 
@@ -2742,6 +2810,8 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1,
     vSum = t + tx + h + rad;
   } else if (hypo == Hypothesis::TTBB) {
     vSum = t + tx + b + bx + rad;
+  } else if (hypo == Hypothesis::QCD) { //DS
+    vSum = t + tx + b + bx;
   }
   assert(GOOD_VEC(vSum));
 
@@ -2767,7 +2837,7 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1,
              << ", " << boostPt.Py() << ", " << boostPt.Pz() << ")" << endl;
   }
 
-  if (hypo == Hypothesis::TTH) {
+  if (hypo == Hypothesis::TTH) { //DS
     if (apply_boost) {
       h.Boost(-boostPt);
       // fix for rounding
@@ -2789,8 +2859,19 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1,
       b.SetPxPyPzE(bPx, bPy, bPz, sqrt(bPx * bPx + bPy * bPy + bPz * bPz));
     }
     sum = t + tx + b + bx + rad;
+  } else if (hypo == Hypothesis::QCD) { //DS
+    if (apply_boost) {
+      b.Boost(-boostPt);
+      bx.Boost(-boostPt);
+      // fix for rounding
+      double bPx = -(t.Px() + tx.Px() + bx.Px() + rad.Px());
+      double bPy = -(t.Py() + tx.Py() + bx.Py() + rad.Py());
+      double bPz = b.Pz();
+      b.SetPxPyPzE(bPx, bPy, bPz, sqrt(bPx * bPx + bPy * bPy + bPz * bPz));
+    }
+    sum = t + tx + b + bx;
   }
-
+  
   // update x1 and x2
   double E = sum.E();
   double Pz = sum.Pz();
@@ -2823,8 +2904,18 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1,
     } else {
       ps = get_phase_space({g1, g2, t, tx, b, bx});
       cur_proc_id = processes.at(Process::TTBB);
-
     }
+  } else if (hypo == Hypothesis::QCD) {
+    ps = get_phase_space({g1, g2, t, tx, b, bx}); //DS
+    cur_proc_id = processes.at(Process::QCD);
+    // cout << "E Px Py Pz M" << endl;
+    // for(int i=0; i<5; i++){ 
+    //   cout << ps[5*i+0] << " "
+    // 	   << ps[5*i+1] << " "
+    // 	   << ps[5*i+2] << " "
+    // 	   << ps[5*i+3] << " "
+    // 	   << ps[5*i+4] << endl;
+    // }
   } else {
     throw std::runtime_error("Undefined hypo");
   }
@@ -2860,6 +2951,9 @@ double MEM::Integrand::pdf(const double &x1, const double &x2,
     case Hypothesis::TTBB:
       Q = TMath::Sqrt(4 * MTOP * MTOP + TMath::Power(dynamical, 2));
       break;
+  case Hypothesis::QCD:   //DS
+      Q = (2 * MTOP + MH) / 2;
+      break; 
     default:
       break;
   }
@@ -2938,7 +3032,7 @@ double MEM::Integrand::H_decay_amplitude(const TLorentzVector &b,
 
   double InvJac{1.0};
   double m2{1.0};
-  if (hypo == Hypothesis::TTH) {
+  if (hypo == Hypothesis::TTH || hypo == Hypothesis::QCD) { //DS
     p *= BWH;
     InvJac = TMath::Abs(
         2 * (b.E() - b.Vect().Dot(bbar.Vect().Unit()) / bbar.Beta()));
@@ -2952,14 +3046,44 @@ double MEM::Integrand::H_decay_amplitude(const TLorentzVector &b,
 #ifdef DEBUG_MODE
   if (VLOG_IS_ON(3)) {
     DVLOG(3) << "\tIntegrand::H_decay_amplitude():";
-    if (hypo == Hypothesis::TTH) {
+    if (hypo == Hypothesis::TTH || hypo == Hypothesis::QCD) { //DS
       DVLOG(3) << "\t\tBreit-Wigner Higgs = " << BWH << " GeV^-2";
       DVLOG(3) << "\t\tJacobian (Eb,Ebbar) -> (E_b, m2_bb) = " << Jac << " GeV";
-      DVLOG(3) << "\t\t|M2|(t->bqq') = " << m2 << " GeV^2";
+      DVLOG(3) << "\t\t|M2|(H->bbar) = " << m2 << " GeV^2";
       DVLOG(3) << "\t\tTotal = " << p << " GeV";
     } else {
       DVLOG(3) << "\t\tJacobian = " << Jac << " GeV^2";
     }
+  }
+#endif
+
+  return p;
+}
+
+double MEM::Integrand::g_decay_amplitude(const TLorentzVector &q,    //DS-FIXME: ensure proper calc. of decay amp.
+                                         const TLorentzVector &qbar) const {
+  double p{1.};
+  if (!(cfg.int_code & IntegrandType::DecayAmpl)) return p;
+
+  double InvJac{1.0};
+  double m2{1.0};
+  p *= PI; //Breit_Wigner equivalent for gluon FIXME
+  InvJac = TMath::Abs(
+      2 * (q.E() - q.Vect().Dot(qbar.Vect().Unit()) / qbar.Beta()));
+  m2 = 1.0; //2 * YB2 * MH2 * PSHBB; //FIXME
+
+  double Jac = (1. / InvJac) * q.Vect().Mag() * qbar.Vect().Mag() / (2 * 2);
+  if (cfg.int_code & IntegrandType::Jacobian) p *= Jac;
+
+  p *= m2;
+
+#ifdef DEBUG_MODE
+  if (VLOG_IS_ON(3)) {
+    DVLOG(3) << "\tIntegrand::g_decay_amplitude():";
+    DVLOG(3) << "\t\tBreit-Wigner gluon = " << PI << " GeV^-2";
+    DVLOG(3) << "\t\tJacobian (Eq,Eqbar) -> (E_q, m2_qq) = " << Jac << " GeV";
+    DVLOG(3) << "\t\t|M2|(g->qqbar) = " << m2 << " GeV^2";
+    DVLOG(3) << "\t\tTotal = " << p << " GeV";
   }
 #endif
 

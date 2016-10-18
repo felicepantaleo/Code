@@ -5,7 +5,7 @@
 
 // needed for easylogging
 #ifndef DEBUG_MODE
-#define NDEBUG
+#define NDEBUG 2
 #endif
 
 // std library
@@ -425,11 +425,11 @@ class PS {
 };
 
 namespace Hypothesis {
-enum Hypothesis { TTH = 0, TTBB = 1, Undefined = 2 };
+  enum Hypothesis { TTH = 0, TTBB = 1, QCD = 2, Undefined = 3 }; //DS
 }
 
 namespace Process {
-enum Process { TTH = 0, TTBB = 1, TTHj = 2, TTBBj = 3, Undefined = 4 };
+  enum Process { TTH = 0, TTBB = 1, TTHj = 2, TTBBj = 3, QCD = 4, Undefined = 5 }; //DS
 }
 
 namespace PermConstants {
@@ -543,7 +543,7 @@ struct MEMConfig {
 
   // "map" between an integration type and the number of function calls
   // FinalState vs Hypothesis vs Assumption
-  int calls[4][2][6];
+  int calls[4][3][6];  //DS
 
   // the VEGAS options
   double rel;
