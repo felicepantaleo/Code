@@ -898,6 +898,16 @@ void MEM::Integrand::make_assumption(
   DVLOG(1) << perms_to_string(perm_indexes_assumption, perm_const_assumption);
   LOG(INFO) << "A total of " << perm_indexes_assumption.size()
             << " permutations have been considered for this assumption";
+  if (hypo == Hypothesis::QCD){ //DS - temp
+    for(unsigned int j=0; j< perm_indexes_assumption.size(); j++){
+      auto fred = perm_indexes_assumption[j];
+      for(unsigned int i=0; i< fred.size(); i++){
+	cout << fred[i] << " ";
+      }
+      cout << endl;
+    }
+  }
+
   if (cfg.max_permutations > 0 &&
       perm_indexes_assumption.size() > (unsigned int)cfg.max_permutations) {
     LOG(ERROR) << "Too many permutations, bailing out";
@@ -1362,13 +1372,8 @@ bool MEM::Integrand::accept_perm_bbbarsymmetry(const vector<int> &perm) const {
 bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     const vector<int> &perm) const {
   vector<size_t> indexes1, indexes2;
-  if (hypo == Hypothesis::QCD) { //DS
-    // the  symmetric part
-    indexes1 = get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1,
-	  PSPart::q2, PSPart::qbar2, PSPart::b, PSPart::b1, PSPart::bbar, PSPart::b2});
-    // the asymmetric part - none
-  }
-  else if (fs == FinalState::LH) {
+ 
+  if (fs == FinalState::LH) {
     // the  symmetric part
     indexes1 = get_indexes(
         map_to_part, {PSPart::q1, PSPart::qbar1, PSPart::b, PSPart::bbar});
@@ -1380,12 +1385,20 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     // the asymmetric part
     indexes2 = get_indexes(map_to_part, {PSPart::b1, PSPart::b2});
   } else if (fs == FinalState::HH) {
-    // the  symmetric part
-    indexes1 =
+    if (hypo == Hypothesis::QCD) { //DS
+      // the  symmetric part
+      indexes1 = get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1,
+	    PSPart::q2, PSPart::qbar2, PSPart::b, PSPart::b1, PSPart::bbar, PSPart::b2});
+      // the asymmetric part - none
+    }
+    else {
+      // the  symmetric part
+      indexes1 =
         get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1, PSPart::q2,
 	                          PSPart::qbar2, PSPart::b, PSPart::bbar});
-    // the asymmetric part
-    indexes2 = get_indexes(map_to_part, {PSPart::b1, PSPart::b2});
+      // the asymmetric part
+      indexes2 = get_indexes(map_to_part, {PSPart::b1, PSPart::b2});
+    }
   }
 
   for (auto visited : perm_indexes_assumption) {
@@ -1396,20 +1409,42 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     for (auto same : indexes2)
       if (visited[same] != perm[same]) asymmetric_part = false;
 
-    // loop over quark position pairs searching for a swap
-    for (size_t i = 0; i < (indexes1.size() / 2); ++i) {
-      bool same = (visited[indexes1[2 * i]] == perm[indexes1[2 * i]]) &&
-                  (visited[indexes1[2 * i + 1]] == perm[indexes1[2 * i + 1]]);
-      bool swap = (visited[indexes1[2 * i]] == perm[indexes1[2 * i + 1]]) &&
-                  (visited[indexes1[2 * i + 1]] == perm[indexes1[2 * i]]);
-      if (!(same || swap)) symmetric_part = false;
+    // exclude equivalent permutations for qcd hypothesis - DS
+    if (hypo == Hypothesis::QCD) {
+      for (size_t i = 0; i < (indexes1.size() / 4); ++i) {
+	bool same = (visited[indexes1[4 * i]] == perm[indexes1[4 * i]]) &&
+	            (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 1]]) &&
+	            (visited[indexes1[4 * i + 2]] == perm[indexes1[4 * i + 2]]) &&
+	            (visited[indexes1[4 * i + 3]] == perm[indexes1[4 * i + 3]]);
+	bool swap1 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 1]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i]]);
+	bool swap2 = (visited[indexes1[4 * i + 2]] == perm[indexes1[4 * i + 3]]) &&
+	             (visited[indexes1[4 * i + 3]] == perm[indexes1[4 * i + 2]]);
+	bool swap3 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 2]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 3]]);
+	bool swap4 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 3]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 2]]);
+	if (!(same || swap1 || swap2 || swap3 || swap4)) symmetric_part = false;
+      }
     }
+    else {
+      // loop over quark position pairs searching for a swap
+      for (size_t i = 0; i < (indexes1.size() / 2); ++i) {
+	bool same = (visited[indexes1[2 * i]] == perm[indexes1[2 * i]]) &&
+	            (visited[indexes1[2 * i + 1]] == perm[indexes1[2 * i + 1]]);
+	bool swap = (visited[indexes1[2 * i]] == perm[indexes1[2 * i + 1]]) &&
+	            (visited[indexes1[2 * i + 1]] == perm[indexes1[2 * i]]);
+	if (!(same || swap)) symmetric_part = false;
+      }
+    }
+
 
     if (asymmetric_part && symmetric_part) {
       VLOG(2) << "Discard permutation: a (Q,QBAR) swap has been found";
       return false;
     }
   }
+
   return true;
 }
 
