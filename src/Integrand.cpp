@@ -898,15 +898,6 @@ void MEM::Integrand::make_assumption(
   DVLOG(1) << perms_to_string(perm_indexes_assumption, perm_const_assumption);
   LOG(INFO) << "A total of " << perm_indexes_assumption.size()
             << " permutations have been considered for this assumption";
-  if (hypo == Hypothesis::QCD){ //DS - temp
-    for(unsigned int j=0; j< perm_indexes_assumption.size(); j++){
-      auto fred = perm_indexes_assumption[j];
-      for(unsigned int i=0; i< fred.size(); i++){
-	cout << fred[i] << " ";
-      }
-      cout << endl;
-    }
-  }
 
   if (cfg.max_permutations > 0 &&
       perm_indexes_assumption.size() > (unsigned int)cfg.max_permutations) {
