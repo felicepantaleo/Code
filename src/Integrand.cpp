@@ -2289,7 +2289,7 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     dir.SetPhi(x[map_to_var.find(PSVar::phi_qbar2)->second]);
     tftype = (perm[nj_qbar2] == -1 ? TFType::qLost : TFType::Unknown);
   }
-  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q1).E(); //DS assume equal energies in g->qqbar decay
+  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q2).E(); //DS assume equal energies in g->qqbar decay
   else E = solve(ps.lv(PSPart::q2), DMW2, MQ, dir, E_REC, accept);
   extend_PS(ps, PSPart::qbar2, E, MQ, dir, perm[nj_qbar2], PSVar::cos_qbar2,
             PSVar::phi_qbar2, PSVar::E_qbar2, tftype, 0);
@@ -2513,7 +2513,7 @@ double MEM::Integrand::matrix(const PS &ps) const {
            << ", m(t2)=" << (lv_q2 + lv_qbar2 + lv_b2).M() << endl
            << ", m(H)=" << (lv_b + lv_bbar).M();
 
-  if (hypo == Hypothesis::QCD){
+  if (hypo == Hypothesis::QCD){  //DS
     m *= g_decay_amplitude(lv_q1, lv_qbar1);
     m *= g_decay_amplitude(lv_q2, lv_qbar2);
     m *= g_decay_amplitude(lv_b1, lv_b2);
