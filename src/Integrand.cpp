@@ -93,9 +93,9 @@ MEM::Integrand::Integrand(int debug, const MEMConfig &config)
       ol_register_process("21 21 -> 6 -6 5 -5 21", 1);  // ttbbg
 
   // qcd
-  ol_setparameter_int("order_ew", 0); //DS - ppjjj
+  ol_setparameter_int("order_ew", 0); //DS - ppjj
   processes[Process::QCD] =
-      ol_register_process("21 21 -> 21 21 21", 1);  // qcd: 1 for tree, 11 for loop, 12 for loop^2
+      ol_register_process("21 21 -> 21 21", 1);  // qcd: 1 for tree, 11 for loop, 12 for loop^2
 
   el::Configurations defaultConf;
   defaultConf.setToDefault();
@@ -254,7 +254,7 @@ void MEM::Integrand::init(const MEM::FinalState::FinalState f,
     } else if (hypo == Hypothesis::TTBB) {
       ps_dim = 4;
     } else if (hypo == Hypothesis::QCD) { //DS
-      ps_dim = 3;  // assume 3 gluons split to 2 quarks each
+      ps_dim = 2;  // assume 2 gluons split to 2 quarks each
     }
   }
 
@@ -272,7 +272,7 @@ void MEM::Integrand::init(const MEM::FinalState::FinalState f,
       // MET Px/Py
       - 2 * (obs_mets.size() == 0)
       // correction for QCD hypo - DS
-      - 1 * (hypo == Hypothesis::QCD);
+      - 2 * (hypo == Hypothesis::QCD);
 
   DVLOG(1) << "Total of " << num_of_vars
            << " unknowns (does not take into account lost jets)";
@@ -370,7 +370,7 @@ void MEM::Integrand::get_edges(double *lim,
       }
       break;
     case FinalState::HH:
-      lim[map_to_var[PSVar::E_q1]] = edge ? 1. : 0.;
+      if (hypo != Hypothesis::QCD) lim[map_to_var[PSVar::E_q1]] = edge ? 1. : 0.; //DS
       if (hypo != Hypothesis::QCD) lim[map_to_var[PSVar::E_q2]] = edge ? 1. : 0.; //DS
       lim[map_to_var[PSVar::E_b]] = edge ? 1. : 0.;
       if (hypo == Hypothesis::TTBB || hypo == Hypothesis::QCD) //DS
@@ -482,9 +482,8 @@ void MEM::Integrand::fill_map(const std::vector<PSVar::PSVar> &lost) {
 
     // PS variable <-> VEGAS variable
     if (hypo == Hypothesis::QCD){ //DS
-      map_to_var[PSVar::E_q1] = 0;  // Eq
-      map_to_var[PSVar::E_b] = 1;   // Eb
-      map_to_var[PSVar::E_bbar] = 2;
+      map_to_var[PSVar::E_b] = 0;   // Eb
+      map_to_var[PSVar::E_bbar] = 1; 
     }
     else {
       map_to_var[PSVar::E_q1] = 0;  // Eq
@@ -1372,7 +1371,7 @@ bool MEM::Integrand::accept_perm_bbbarsymmetry(const vector<int> &perm) const {
 
 bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     const vector<int> &perm) const {
-  vector<size_t> indexes1, indexes2, indexes3; //DS
+  vector<size_t> indexes1, indexes2; //DS
  
   if (fs == FinalState::LH) {
     // the  symmetric part
@@ -1388,8 +1387,7 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
   } else if (fs == FinalState::HH) {
     if (hypo == Hypothesis::QCD) { //DS
       // the  symmetric part
-      indexes1 = get_indexes(map_to_part, {PSPart::q1, PSPart::qbar1});
-      indexes3 = get_indexes(map_to_part, {PSPart::b, PSPart::b1, PSPart::bbar, PSPart::b2});
+      indexes1 = get_indexes(map_to_part, {PSPart::b, PSPart::b1, PSPart::bbar, PSPart::b2});
       // the asymmetric part - none
     }
     else {
@@ -1412,27 +1410,20 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
 
     // exclude equivalent permutations for qcd hypothesis - DS
     if (hypo == Hypothesis::QCD) {
-      for (size_t j = 0; j < (indexes1.size() / 2); ++j) {
-	bool same = (visited[indexes1[2 * j]] == perm[indexes1[2 * j]]) &&
-	            (visited[indexes1[2 * j + 1]] == perm[indexes1[2 * j + 1]]);
-	bool swap = (visited[indexes1[2 * j]] == perm[indexes1[2 * j + 1]]) &&
-	            (visited[indexes1[2 * j + 1]] == perm[indexes1[2 * j]]);
-	if (!(same || swap)) symmetric_part = false;
-      }
-      for (size_t i = 0; i < (indexes3.size() / 4); ++i) {
-	bool same1 = (visited[indexes3[4 * i]] == perm[indexes3[4 * i]]) &&
-	            (visited[indexes3[4 * i + 1]] == perm[indexes3[4 * i + 1]]) &&
-	            (visited[indexes3[4 * i + 2]] == perm[indexes3[4 * i + 2]]) &&
-	            (visited[indexes3[4 * i + 3]] == perm[indexes3[4 * i + 3]]);
-	bool swap1 = (visited[indexes3[4 * i]] == perm[indexes3[4 * i + 1]]) &&
-	             (visited[indexes3[4 * i + 1]] == perm[indexes3[4 * i]]);
-	bool swap2 = (visited[indexes3[4 * i + 2]] == perm[indexes3[4 * i + 3]]) &&
-	             (visited[indexes3[4 * i + 3]] == perm[indexes3[4 * i + 2]]);
-	bool swap3 = (visited[indexes3[4 * i]] == perm[indexes3[4 * i + 2]]) &&
-	             (visited[indexes3[4 * i + 1]] == perm[indexes3[4 * i + 3]]);
-	bool swap4 = (visited[indexes3[4 * i]] == perm[indexes3[4 * i + 3]]) &&
-	             (visited[indexes3[4 * i + 1]] == perm[indexes3[4 * i + 2]]);
-	if (!(same1 || swap1 || swap2 || swap3 || swap4)) symmetric_part = false;
+      for (size_t i = 0; i < (indexes1.size() / 4); ++i) {
+	bool same = (visited[indexes1[4 * i]] == perm[indexes1[4 * i]]) &&
+	            (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 1]]) &&
+	            (visited[indexes1[4 * i + 2]] == perm[indexes1[4 * i + 2]]) &&
+	            (visited[indexes1[4 * i + 3]] == perm[indexes1[4 * i + 3]]);
+	bool swap1 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 1]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i]]);
+	bool swap2 = (visited[indexes1[4 * i + 2]] == perm[indexes1[4 * i + 3]]) &&
+	             (visited[indexes1[4 * i + 3]] == perm[indexes1[4 * i + 2]]);
+	bool swap3 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 2]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 3]]);
+	bool swap4 = (visited[indexes1[4 * i]] == perm[indexes1[4 * i + 3]]) &&
+	             (visited[indexes1[4 * i + 1]] == perm[indexes1[4 * i + 2]]);
+	if (!(same || swap1 || swap2 || swap3 || swap4)) symmetric_part = false;
       }
     }
     else {
@@ -2242,7 +2233,8 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     E_HIGH = cfg.emax;
     tftype = (perm[nj_q1] == -1 ? TFType::qLost : TFType::Unknown);
   }
-  E = E_LOW + (E_HIGH - E_LOW) * (x[map_to_var.find(PSVar::E_q1)->second]);
+  if (hypo == Hypothesis::QCD) E = E_LOW + (E_HIGH - E_LOW) * 0.5; //DS - do not consider q1
+  else E = E_LOW + (E_HIGH - E_LOW) * (x[map_to_var.find(PSVar::E_q1)->second]);
   extend_PS(ps, PSPart::q1, E, MQ, dir, perm[nj_q1], PSVar::cos_q1,
             PSVar::phi_q1, PSVar::E_q1, tftype, 0);
 
@@ -2255,7 +2247,7 @@ int MEM::Integrand::create_PS_HH(MEM::PS &ps, const double *x,
     dir.SetPhi(x[map_to_var.find(PSVar::phi_qbar1)->second]);
     tftype = (perm[nj_qbar1] == -1 ? TFType::qLost : TFType::Unknown);
   }
-  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q1).E(); //DS assume equal energies in g->qqbar decay
+  if (hypo == Hypothesis::QCD) E = ps.lv(PSPart::q1).E(); //DS - qbar1 not considered
   else E = solve(ps.lv(PSPart::q1), DMW2, MQ, dir, E_REC, accept);
   extend_PS(ps, PSPart::qbar1, E, MQ, dir, perm[nj_qbar1], PSVar::cos_qbar1,
             PSVar::phi_qbar1, PSVar::E_qbar1, tftype, 0);
@@ -2537,10 +2529,9 @@ double MEM::Integrand::matrix(const PS &ps) const {
            << ", m(H)=" << (lv_b + lv_bbar).M();
 
   if (hypo == Hypothesis::QCD){ //DS
-    m *= g_decay_amplitude(lv_q1, lv_qbar1);
     m *= g_decay_amplitude(lv_b1, lv_b2);
     m *= g_decay_amplitude(lv_b, lv_bbar);
-    m *= scattering(lv_q1 + lv_qbar1,  // gluon
+    m *= scattering(lv_q1 + lv_qbar1,  // ignored
 		    lv_q2 + lv_qbar2,  // ignored
 		    lv_b1 + lv_b2, lv_b + lv_bbar, lv_additional_jet, x1, x2);
   }
@@ -2819,7 +2810,7 @@ double *get_phase_space(std::initializer_list<LV> vecs) {
   return ps;
 }
 
-double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, //DS g3, empty, g4
+double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, //DS empty, empty, g4
                                   const LV &b2, const LV &additional_jet,      //DS g5, empty
                                   double &x1, double &x2) const {
   // return value (address passed to OpenLoops)
@@ -2859,7 +2850,7 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, /
   } else if (hypo == Hypothesis::TTBB) {
     vSum = t + tx + b + bx + rad;
   } else if (hypo == Hypothesis::QCD) { //DS
-    vSum = t + b + bx;
+    vSum = b + bx;
   }
   assert(GOOD_VEC(vSum));
 
@@ -2912,12 +2903,12 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, /
       b.Boost(-boostPt);
       bx.Boost(-boostPt);
       // fix for rounding
-      double bPx = -(t.Px() + bx.Px() + rad.Px());
-      double bPy = -(t.Py() + bx.Py() + rad.Py());
+      double bPx = -(bx.Px() + rad.Px());
+      double bPy = -(bx.Py() + rad.Py());
       double bPz = b.Pz();
       b.SetPxPyPzE(bPx, bPy, bPz, sqrt(bPx * bPx + bPy * bPy + bPz * bPz));
     }
-    sum = t + b + bx;
+    sum = b + bx;
   }
   
   // update x1 and x2
@@ -2954,7 +2945,7 @@ double MEM::Integrand::scattering(const LV &top, const LV &atop, const LV &b1, /
       cur_proc_id = processes.at(Process::TTBB);
     }
   } else if (hypo == Hypothesis::QCD) {
-    ps = get_phase_space({g1, g2, t, b, bx}); //DS - ignore tx
+    ps = get_phase_space({g1, g2, b, bx}); //DS - ignore t, tx
     cur_proc_id = processes.at(Process::QCD);
   } else {
     throw std::runtime_error("Undefined hypo");
