@@ -179,6 +179,8 @@ class Integrand {
 
   double H_decay_amplitude(const LV &, const LV &) const;
 
+  double g_decay_amplitude(const LV &, const LV &) const;
+
   double pdf(const double &, const double &, const double &) const;
 
   /**
