@@ -674,7 +674,7 @@ double transfer_function2(void*, const double*, const TFType::TFType&, int&,
 
 //DS hardcode permutations to save ~400 sec in 9j category
 vector<vector<int>> get_permutations(std::size_t, std::size_t,
-				      vector<std::size_t>&);
+				     vector<std::size_t>&, std::size_t);
 }
 
 #endif
