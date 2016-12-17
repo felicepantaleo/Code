@@ -348,6 +348,7 @@ bool MEM::BTagRandomizer::check_restore_jets(int& nr) {
 
 void MEM::BTagRandomizer::fill_perm() {
   perm_index.clear();
+  perm_index.reserve(size_t(n_jets));
   for (size_t id = 0; id < size_t(n_jets); ++id) {
     if (jets.at(id)->isSet(Observable::IGNORE_FOR_RND) &&
         jets.at(id)->getObs(Observable::IGNORE_FOR_RND) > 0) {
