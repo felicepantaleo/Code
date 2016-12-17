@@ -337,9 +337,9 @@ void MEM::Integrand::get_edges(double *lim,
         lim[map_to_var[PSVar::E_bbar]] = edge ? 1. : 0.;
       for (auto l = lost.begin(); l != lost.end(); ++l) {
         if (edge) {
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? +1 : +TMath::Pi();
+          lim[map_to_var[*l]] = count_extra  & 1 == 0 ? +1 : +TMath::Pi();
         } else {
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? -1 : -TMath::Pi();
+          lim[map_to_var[*l]] = count_extra & 1 == 0 ? -1 : -TMath::Pi();
         }
         ++count_extra;
       }
@@ -354,9 +354,9 @@ void MEM::Integrand::get_edges(double *lim,
         lim[map_to_var[PSVar::E_bbar]] = edge ? 1. : 0.;
       for (auto l = lost.begin(); l != lost.end(); ++l) {
         if (edge)
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? +1 : +TMath::Pi();
+          lim[map_to_var[*l]] = count_extra & 1 == 0 ? +1 : +TMath::Pi();
         else
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? -1 : -TMath::Pi();
+          lim[map_to_var[*l]] = count_extra & 1 == 0 ? -1 : -TMath::Pi();
         ++count_extra;
       }
       break;
@@ -368,9 +368,9 @@ void MEM::Integrand::get_edges(double *lim,
         lim[map_to_var[PSVar::E_bbar]] = edge ? 1. : 0.;
       for (auto l = lost.begin(); l != lost.end(); ++l) {
         if (edge)
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? +1 : +TMath::Pi();
+          lim[map_to_var[*l]] = count_extra & 1 == 0 ? +1 : +TMath::Pi();
         else
-          lim[map_to_var[*l]] = count_extra % 2 == 0 ? -1 : -TMath::Pi();
+          lim[map_to_var[*l]] = count_extra & 1 == 0 ? -1 : -TMath::Pi();
         ++count_extra;
       }
       break;
@@ -382,7 +382,7 @@ void MEM::Integrand::get_edges(double *lim,
       lim[map_to_var[PSVar::P_tbar]] = edge ? cfg.emax : 0.;
       lim[map_to_var[PSVar::cos_tbar]] = edge ? +0.99 : -0.99;
       lim[map_to_var[PSVar::phi_tbar]] = edge ? +TMath::Pi() : -TMath::Pi();
-      lim[map_to_var[PSVar::Pz_h]] = edge ? cfg.emax / 2 : -cfg.emax / 2;
+      lim[map_to_var[PSVar::Pz_h]] = edge ? cfg.emax *0.5f : -cfg.emax *0.5f;
       break;
     default:
       break;
@@ -635,7 +635,7 @@ MEM::MEMOutput MEM::Integrand::run(const MEM::FinalState::FinalState f,
 
   // clock for init timing - DS temp
   auto t01 = high_resolution_clock::now();
-  cout << "init took " << duration_cast<milliseconds>(t01-t0).count()*0.001 << " seconds" << endl;
+  cout << "init took " << duration_cast<milliseconds>(t01-t0).count()*0.001f << " seconds" << endl;
 
   std::vector<PSVar::PSVar> list;
   for (auto it : missed) list.push_back(it);  // quarks out-of-acceptance
@@ -650,7 +650,7 @@ MEM::MEMOutput MEM::Integrand::run(const MEM::FinalState::FinalState f,
   n_max_calls = ncalls > 0
                     ? ncalls
                     : cfg.calls[static_cast<std::size_t>(fs)]
-                               [static_cast<std::size_t>(h)][list.size() / 2];
+                               [static_cast<std::size_t>(h)][list.size() * 0.5f];
 
   if (debug_code & DebugVerbosity::init) {
     cout << "n_max_calls=" << n_max_calls << endl;
@@ -713,7 +713,7 @@ MEM::MEMOutput MEM::Integrand::run(const MEM::FinalState::FinalState f,
 
   DVLOG(1) << "Integrand::run(): DONE in "
            << static_cast<int>(duration_cast<milliseconds>(t2 - t0).count()) *
-                  0.001
+                  0.001f
            << " sec";
 
   // delete stuff and prepare for new hypothesis
@@ -833,8 +833,9 @@ void MEM::Integrand::make_assumption(
   auto t02 = high_resolution_clock::now();
 
   std::vector<PSVar::PSVar> lost;
-  for (auto it : missed) lost.push_back(it);
-  for (auto it : any) lost.push_back(it);
+  lost.reserve(missed.size()  + any.size());
+  for (auto& it : missed) lost.push_back(it);
+  for (auto& it : any) lost.push_back(it);
 
   // an assumption may not be consistent with the number of observed jets
   // E.g.: assume 1 lost quark but 2 jets missing wrt to expectation
@@ -865,12 +866,12 @@ void MEM::Integrand::make_assumption(
       size_t count{0};
       for (auto it = missed.begin(); it != missed.end(); ++count, ++it) {
 	size_t lost_particle = (static_cast<size_t>(*it) - 1) / 3;
-	if (count % 2 == 0)
+	if (count & 1 == 0)
 	  perm[map_to_part[static_cast<PSPart::PSPart>(lost_particle)]] = -1;
       }
       for (auto it = any.begin(); it != any.end(); ++count, ++it) {
 	size_t lost_particle = (static_cast<size_t>(*it) - 1) / 3;
-	if (count % 2 == 0)
+	if (count &1 == 0)
 	  perm[map_to_part[static_cast<PSPart::PSPart>(lost_particle)]] = -2;
       }
 
@@ -915,17 +916,17 @@ void MEM::Integrand::make_assumption(
     size_t count{0};
     for (auto it = missed.begin(); it != missed.end(); ++count, ++it) {
       size_t lost_particle = (static_cast<size_t>(*it) - 1) / 3;
-      if (count % 2 == 0)
+      if (count &1 == 0)
 	lost_idx.push_back(lost_particle);
     }
     for (auto it = any.begin(); it != any.end(); ++count, ++it) {
       size_t lost_particle = (static_cast<size_t>(*it) - 1) / 3;
-      if (count % 2 == 0)
+      if (count &1 == 0)
 	lost_idx.push_back(lost_particle);
     }
     size_t nb = indexesb.size();
     size_t nq = indexesq.size(); 
-    size_t nlost = (missed.size() + any.size()) / 2;
+    size_t nlost = (missed.size() + any.size()) *0.5f;
 
     if(nlost != lost_idx.size()) cout << "lost mismatch!" << endl;
 
@@ -1072,7 +1073,7 @@ void MEM::Integrand::do_integration(unsigned int npar, double *xL, double *xU,
                  << " returned p=" << n_prob;
 
       prob += n_prob;
-      err2 += TMath::Power(ig2->Error(), 2.);
+      err2 += ig2->Error()*ig2->Error();
       chi2 += ig2->ChiSqr() / perm_indexes_assumption.size();
     }  // loop over permutations
   }    // perm_int
@@ -1080,7 +1081,7 @@ void MEM::Integrand::do_integration(unsigned int npar, double *xL, double *xU,
   // do the integral over the sum of permutations
   else {
     double p = ig2->Integral(xL, xU);
-    double p_err = TMath::Power(ig2->Error(), 2.);
+    double p_err = ig2->Error()*ig2->Error();
     double c2 = ig2->ChiSqr();
 
     // second run of integral
@@ -1094,7 +1095,7 @@ void MEM::Integrand::do_integration(unsigned int npar, double *xL, double *xU,
       ig2->SetParameters(vparam);
 
       p = ig2->Integral(xL, xU);
-      p_err = TMath::Power(ig2->Error(), 2.);
+      p_err = ig2->Error()*ig2->Error();
       c2 = ig2->ChiSqr();
 
       while( TMath::Abs(sqrt(p_err)/p) > cfg.rel ){
@@ -1102,11 +1103,11 @@ void MEM::Integrand::do_integration(unsigned int npar, double *xL, double *xU,
 	ig2->SetParameters(vparam);
 	
 	p = ig2->Integral(xL, xU);
-	p_err = TMath::Power(ig2->Error(), 2.);
+	p_err = ig2->Error()*ig2->Error();
 	c2 = ig2->ChiSqr();
 	
 	//5* => max 4 2nd stage it.s, 13* => max 10 it.s
-	if(n_calls > int(4.0*(cfg.niters-0.5)/3+1)*n_max_calls) break;
+	if(n_calls > int(4.0f*(cfg.niters-0.5f)/3+1)*n_max_calls) break;
       }
     }
 
@@ -1265,6 +1266,7 @@ vector<size_t> get_indexes(
                              MEM::PSPartEqual> &map_to_part,
     std::initializer_list<MEM::PSPart::PSPart> particles) {
   vector<std::size_t> indexes;
+	indexes.reserve(particles.size());
   for (auto p : particles) {
     indexes.push_back(map_to_part.at(p));
   }
@@ -1276,7 +1278,7 @@ bool MEM::Integrand::accept_perm_btagged(const vector<int> &perm) const {
   vector<size_t> indexes = get_indexes(
       map_to_part, {PSPart::b1, PSPart::b2, PSPart::b, PSPart::bbar});
 
-  for (auto ind : indexes) {
+  for (auto& ind : indexes) {
     int pind = perm[ind];
 
     // jet was present
@@ -1447,9 +1449,9 @@ bool MEM::Integrand::accept_perm_qqbarbbbarsymmetry(
     // loop over quark positions that should be matched to same jet
     for (auto same : indexes2)
       if (visited[same] != perm[same]) asymmetric_part = false;
-
+   size_t loopSize = (indexes1.size() / 2); 
     // loop over quark position pairs searching for a swap
-    for (size_t i = 0; i < (indexes1.size() / 2); ++i) {
+    for (size_t i = 0; i < loopSize; ++i) {
       bool same = (visited[indexes1[2 * i]] == perm[indexes1[2 * i]]) &&
                   (visited[indexes1[2 * i + 1]] == perm[indexes1[2 * i + 1]]);
       bool swap = (visited[indexes1[2 * i]] == perm[indexes1[2 * i + 1]]) &&
@@ -2013,7 +2015,7 @@ int MEM::Integrand::create_PS_LH(MEM::PS &ps, const double *x,
   if (hypo == Hypothesis::TTBB) {
     LV lv_b = ps.lv(PSPart::b);
     LV lv_bbar = ps.lv(PSPart::bbar);
-    if (lv_b.Pt() < 0. || lv_bbar.Pt() < 0. || deltaR(lv_b, lv_bbar) < 0.3) {
+    if (lv_b.Pt() < 0 || lv_bbar.Pt() < 0 || deltaR(lv_b, lv_bbar) < 0.3) {
       accept = -1;
       DVLOG(2) << "Skip this PS because of collinearity: [" << lv_b.Pt()
                 << ", " << lv_bbar.Pt() << ", " << deltaR(lv_b, lv_bbar) << "]";
@@ -2704,7 +2706,6 @@ double MEM::Integrand::transfer(const PS &ps, const vector<int> &perm,
       int eta_bin = eta_to_bin(eta_gen, true);
       // if outside acceptance, return 1.0
       if (eta_bin < 0) {
-        w *= 1.0;
         continue;
       }
 
@@ -2923,7 +2924,7 @@ double MEM::Integrand::pdf(const double &x1, const double &x2,
       Q = (2 * MTOP + MH) / 2;
       break;
     case Hypothesis::TTBB:
-      Q = TMath::Sqrt(4 * MTOP * MTOP + TMath::Power(dynamical, 2));
+      Q = TMath::Sqrt(4 * MTOP * MTOP + dynamical*dynamical);
       break;
     default:
       break;
